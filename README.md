@@ -1,5 +1,9 @@
 # Telegram LLM Translation Bot(@SendTranslatedBot)
 
+[![Tests](https://github.com/nikita-holban/telegram-translate/actions/workflows/tests.yml/badge.svg)](https://github.com/nikita-holban/telegram-translate/actions/workflows/tests.yml)
+[![Deploy](https://github.com/nikita-holban/telegram-translate/actions/workflows/deploy.yml/badge.svg)](https://github.com/nikita-holban/telegram-translate/actions/workflows/deploy.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 You can try it here: [@SendTranslatedBot](https://t.me/SendTranslatedBot)
 
 A Telegram **inline** bot that translates text with an LLM (Anthropic Claude).
