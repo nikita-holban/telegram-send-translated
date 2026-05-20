@@ -36,7 +36,7 @@ _HELP_TEXT = (
     "Type <code>@{username} your text</code> in the message box of any chat, "
     "then tap the result to send the translation.\n\n"
     "<b>Target language</b>\n"
-    "• By default I translate into your saved language.\n"
+    "{status}\n"
     "• Override it for one message with a prefix:\n"
     "  <code>@{username} fr: good morning</code>\n\n"
     "<b>Commands</b>\n"
@@ -46,19 +46,27 @@ _HELP_TEXT = (
 )
 
 
-async def _send_help(message: Message) -> None:
+async def _send_help(message: Message, storage: Storage, config: Config) -> None:
     me = await message.bot.me()
-    await message.answer(_HELP_TEXT.format(username=me.username))
+    saved = await storage.get_target_lang(message.from_user.id)
+    if saved:
+        status = f"• You translate into <b>{saved}</b> by default."
+    else:
+        status = (
+            f"• You haven't set a default yet, so I use <b>"
+            f"{config.default_target_lang}</b>. Change it with /setlang."
+        )
+    await message.answer(_HELP_TEXT.format(username=me.username, status=status))
 
 
 @router.message(CommandStart())
-async def cmd_start(message: Message) -> None:
-    await _send_help(message)
+async def cmd_start(message: Message, storage: Storage, config: Config) -> None:
+    await _send_help(message, storage, config)
 
 
 @router.message(Command("help"))
-async def cmd_help(message: Message) -> None:
-    await _send_help(message)
+async def cmd_help(message: Message, storage: Storage, config: Config) -> None:
+    await _send_help(message, storage, config)
 
 
 @router.message(Command("setlang"))
