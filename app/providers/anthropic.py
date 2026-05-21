@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 
 import anthropic
 
+from .base import TranslationProvider
+
 # Static instructions only — the variable target language and text go in the
 # user message. Kept short on purpose; it is well below the prompt-caching
 # minimum, so no cache_control is applied (it would be a silent no-op).
@@ -22,8 +24,8 @@ _SYSTEM_PROMPT = (
 _TOKEN_LOG_PATH = os.environ.get("TOKEN_LOG_PATH", "data/token_usage.log")
 
 
-class Translator:
-    """Thin async wrapper around the Anthropic Messages API for translation."""
+class AnthropicProvider(TranslationProvider):
+    """Translation backed by the Anthropic Messages API (Claude)."""
 
     def __init__(self, api_key: str, model: str) -> None:
         self._client = anthropic.AsyncAnthropic(api_key=api_key)
@@ -51,13 +53,19 @@ class Translator:
         with open(_TOKEN_LOG_PATH, "a", newline="") as f:
             writer = csv.writer(f)
             if write_header:
-                writer.writerow(["timestamp", "model", "input_tokens", "output_tokens"])
+                writer.writerow(
+                    ["timestamp", "model", "input_tokens", "output_tokens"]
+                )
             writer.writerow([
                 datetime.now(timezone.utc).isoformat(),
                 self._model,
                 usage.input_tokens,
                 usage.output_tokens,
             ])
+
+    async def supports(self, target_lang: str) -> bool:
+        # The LLM handles any language name we accept.
+        return True
 
     async def aclose(self) -> None:
         await self._client.close()

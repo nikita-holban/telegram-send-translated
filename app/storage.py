@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import os
+import sqlite3
 
 import aiosqlite
 
 
 class Storage:
-    """Per-user settings persisted in SQLite (the default target language)."""
+    """Per-user settings persisted in SQLite (target language and provider)."""
 
     def __init__(self, db_path: str) -> None:
         self._db_path = db_path
@@ -20,8 +21,16 @@ class Storage:
         await self._db.execute(
             "CREATE TABLE IF NOT EXISTS user_settings ("
             "user_id INTEGER PRIMARY KEY, "
-            "target_lang TEXT NOT NULL)"
+            "target_lang TEXT, "
+            "provider TEXT)"
         )
+        # Migrate databases created before the provider column existed.
+        try:
+            await self._db.execute(
+                "ALTER TABLE user_settings ADD COLUMN provider TEXT"
+            )
+        except sqlite3.OperationalError:
+            pass  # column already present
         await self._db.commit()
 
     async def close(self) -> None:
@@ -30,20 +39,32 @@ class Storage:
             self._db = None
 
     async def get_target_lang(self, user_id: int) -> str | None:
+        return await self._get(user_id, "target_lang")
+
+    async def set_target_lang(self, user_id: int, target_lang: str) -> None:
+        await self._set(user_id, "target_lang", target_lang)
+
+    async def get_provider(self, user_id: int) -> str | None:
+        return await self._get(user_id, "provider")
+
+    async def set_provider(self, user_id: int, provider: str) -> None:
+        await self._set(user_id, "provider", provider)
+
+    async def _get(self, user_id: int, column: str) -> str | None:
         db = self._require_db()
         async with db.execute(
-            "SELECT target_lang FROM user_settings WHERE user_id = ?",
+            f"SELECT {column} FROM user_settings WHERE user_id = ?",
             (user_id,),
         ) as cursor:
             row = await cursor.fetchone()
         return row[0] if row else None
 
-    async def set_target_lang(self, user_id: int, target_lang: str) -> None:
+    async def _set(self, user_id: int, column: str, value: str) -> None:
         db = self._require_db()
         await db.execute(
-            "INSERT INTO user_settings (user_id, target_lang) VALUES (?, ?) "
-            "ON CONFLICT(user_id) DO UPDATE SET target_lang = excluded.target_lang",
-            (user_id, target_lang),
+            f"INSERT INTO user_settings (user_id, {column}) VALUES (?, ?) "
+            f"ON CONFLICT(user_id) DO UPDATE SET {column} = excluded.{column}",
+            (user_id, value),
         )
         await db.commit()
 

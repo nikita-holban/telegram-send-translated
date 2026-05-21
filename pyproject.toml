@@ -8,6 +8,7 @@ dependencies = [
     "aiogram>=3.7,<4",
     "aiosqlite>=0.20",
     "anthropic>=0.40",
+    "google-cloud-translate>=3.15",
     "python-dotenv>=1.0",
 ]
 
