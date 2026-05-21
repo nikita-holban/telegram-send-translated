@@ -6,6 +6,7 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.types import BotCommand
 
 from . import handlers
 from .config import load_config
@@ -30,6 +31,13 @@ async def main() -> None:
     )
     dispatcher = Dispatcher()
     dispatcher.include_router(handlers.router)
+
+    await bot.set_my_commands([
+        BotCommand(command="setlang", description="Set your default target language"),
+        BotCommand(command="provider", description="Choose your translation engine"),
+        BotCommand(command="lang", description="Show your current default language"),
+        BotCommand(command="help", description="How to use this bot"),
+    ])
 
     try:
         await bot.delete_webhook(drop_pending_updates=True)
