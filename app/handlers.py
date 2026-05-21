@@ -20,6 +20,7 @@ from aiogram.types import (
 
 from .config import Config
 from .languages import (
+    display_language,
     normalize_language,
     parse_query,
     resolve_target,
@@ -74,7 +75,9 @@ async def _send_help(
 
     saved = await storage.get_target_lang(user_id)
     if saved:
-        lang_status = f"• You translate into <b>{saved}</b> by default."
+        lang_status = (
+            f"• You translate into <b>{display_language(saved)}</b> by default."
+        )
     else:
         lang_status = (
             f"• You haven't set a default yet, so I use <b>"
@@ -98,8 +101,8 @@ async def _support_warning(
     if await provider.supports(language):
         return ""
     return (
-        f"\n\nNote: {label} may not support <b>{language}</b>. "
-        "If translations fail, pick another language with /setlang."
+        f"\n\nNote: {label} may not support <b>{display_language(language)}</b>."
+        " If translations fail, pick another language with /setlang."
     )
 
 
@@ -125,7 +128,8 @@ async def _try_set_language(
             message.from_user.id, target, storage, registry
         )
         await message.answer(
-            f"Default target language set to <b>{target}</b>.{warning}"
+            f"Default target language set to "
+            f"<b>{display_language(target)}</b>.{warning}"
         )
         return True
 
@@ -133,7 +137,12 @@ async def _try_set_language(
     if suggestions:
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text=name, callback_data=f"setlang:{name}")]
+                [
+                    InlineKeyboardButton(
+                        text=display_language(name),
+                        callback_data=f"setlang:{name}",
+                    )
+                ]
                 for name in suggestions
             ]
         )
@@ -231,7 +240,9 @@ async def cmd_provider(
 async def cmd_lang(message: Message, storage: Storage, config: Config) -> None:
     target = await storage.get_target_lang(message.from_user.id)
     if target:
-        await message.answer(f"Your default target language is <b>{target}</b>.")
+        await message.answer(
+            f"Your default target language is <b>{display_language(target)}</b>."
+        )
     else:
         await message.answer(
             f"You haven't set a default yet — I'm using "
@@ -252,7 +263,8 @@ async def on_setlang_choice(
     )
     if isinstance(callback.message, Message):
         await callback.message.edit_text(
-            f"Default target language set to <b>{target}</b>.{warning}"
+            f"Default target language set to "
+            f"<b>{display_language(target)}</b>.{warning}"
         )
     await callback.answer()
 
@@ -293,7 +305,7 @@ async def inline_translate(
     if not raw.strip():
         saved = await storage.get_target_lang(user_id)
         if saved:
-            button_text = f"Default: {saved} — tap to change"
+            button_text = f"Default: {display_language(saved)} — tap to change"
         else:
             button_text = "Set your default language"
         await inline_query.answer(
@@ -350,7 +362,7 @@ async def inline_translate(
 
     result = InlineQueryResultArticle(
         id=str(uuid.uuid4()),
-        title=f"Translate to {target}",
+        title=f"Translate to {display_language(target)}",
         description=translated,
         input_message_content=InputTextMessageContent(
             message_text=translated, parse_mode=None

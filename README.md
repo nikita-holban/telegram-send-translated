@@ -16,8 +16,9 @@ Two translation engines are supported and each user picks their own:
   yourself.
 - **Target language**: each user sets a default with `/setlang`. Any single
   query can override it with a prefix, e.g. `@yourbot fr: good morning`.
-  `/setlang` understands ~135 languages by name or code, and offers tappable
-  suggestions when you mistype (e.g. `Ukrannian` → `Ukrainian`).
+  `/setlang` understands over 130 languages by English name, native name
+  (`Українська`, `Español`), or code, and offers tappable suggestions when
+  you mistype (e.g. `Ukrannian` → `Ukrainian`). Replies show both names.
 - **Translation engine**: each user picks Claude or Google with `/provider`.
 - Telegram's inline API does not expose *which* chat a query came from, so
   settings are per **user**, not per chat. The `xx:` prefix is the
