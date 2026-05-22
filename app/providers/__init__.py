@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from ..config import Config
+from ..storage import Storage
 from .anthropic import AnthropicProvider
 from .base import TranslationError, TranslationProvider
 from .google import GoogleProvider
@@ -53,16 +54,16 @@ class ProviderRegistry:
             await provider.aclose()
 
 
-def build_registry(config: Config) -> ProviderRegistry:
+def build_registry(config: Config, storage: Storage) -> ProviderRegistry:
     """Instantiate every translation backend the config has credentials for."""
     providers: dict[str, TranslationProvider] = {}
     if config.anthropic_api_key:
         providers["anthropic"] = AnthropicProvider(
-            config.anthropic_api_key, config.anthropic_model
+            config.anthropic_api_key, config.anthropic_model, storage
         )
     if config.google_project_id:
         providers["google"] = GoogleProvider(
-            config.google_project_id, config.google_location
+            config.google_project_id, config.google_location, storage, config.google_budget_usd
         )
     if not providers:
         raise RuntimeError(

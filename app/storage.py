@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+from datetime import datetime, timezone
 
 import aiosqlite
 
@@ -31,7 +32,44 @@ class Storage:
             )
         except sqlite3.OperationalError:
             pass  # column already present
+        await self._db.execute(
+            "CREATE TABLE IF NOT EXISTS usage_log ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "timestamp TEXT NOT NULL, "
+            "provider TEXT NOT NULL, "
+            "model TEXT, "
+            "chars INTEGER, "
+            "input_tokens INTEGER, "
+            "output_tokens INTEGER)"
+        )
         await self._db.commit()
+
+    async def log_google_usage(self, chars: int) -> None:
+        db = self._require_db()
+        await db.execute(
+            "INSERT INTO usage_log (timestamp, provider, chars) VALUES (?, 'google', ?)",
+            (datetime.now(timezone.utc).isoformat(), chars),
+        )
+        await db.commit()
+
+    async def google_chars_used(self) -> int:
+        db = self._require_db()
+        async with db.execute(
+            "SELECT COALESCE(SUM(chars), 0) FROM usage_log WHERE provider = 'google'"
+        ) as cursor:
+            row = await cursor.fetchone()
+        return int(row[0]) if row else 0
+
+    async def log_anthropic_usage(
+        self, model: str, input_tokens: int, output_tokens: int
+    ) -> None:
+        db = self._require_db()
+        await db.execute(
+            "INSERT INTO usage_log (timestamp, provider, model, input_tokens, output_tokens) "
+            "VALUES (?, 'anthropic', ?, ?, ?)",
+            (datetime.now(timezone.utc).isoformat(), model, input_tokens, output_tokens),
+        )
+        await db.commit()
 
     async def close(self) -> None:
         if self._db is not None:

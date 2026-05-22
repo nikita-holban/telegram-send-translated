@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-import csv
-import os
-from datetime import datetime, timezone
-
 import anthropic
 
+from ..storage import Storage
 from .base import TranslationProvider
 
 # Static instructions only — the variable target language and text go in the
@@ -21,15 +18,13 @@ _SYSTEM_PROMPT = (
 )
 
 
-_TOKEN_LOG_PATH = os.environ.get("TOKEN_LOG_PATH", "data/token_usage.log")
-
-
 class AnthropicProvider(TranslationProvider):
     """Translation backed by the Anthropic Messages API (Claude)."""
 
-    def __init__(self, api_key: str, model: str) -> None:
+    def __init__(self, api_key: str, model: str, storage: Storage) -> None:
         self._client = anthropic.AsyncAnthropic(api_key=api_key)
         self._model = model
+        self._storage = storage
 
     async def translate(self, text: str, target_lang: str) -> str:
         message = await self._client.messages.create(
@@ -43,25 +38,11 @@ class AnthropicProvider(TranslationProvider):
                 }
             ],
         )
-        self._log_usage(message.usage)
+        await self._storage.log_anthropic_usage(
+            self._model, message.usage.input_tokens, message.usage.output_tokens
+        )
         parts = [block.text for block in message.content if block.type == "text"]
         return "".join(parts).strip()
-
-    def _log_usage(self, usage: anthropic.types.Usage) -> None:
-        os.makedirs(os.path.dirname(_TOKEN_LOG_PATH) or ".", exist_ok=True)
-        write_header = not os.path.exists(_TOKEN_LOG_PATH)
-        with open(_TOKEN_LOG_PATH, "a", newline="") as f:
-            writer = csv.writer(f)
-            if write_header:
-                writer.writerow(
-                    ["timestamp", "model", "input_tokens", "output_tokens"]
-                )
-            writer.writerow([
-                datetime.now(timezone.utc).isoformat(),
-                self._model,
-                usage.input_tokens,
-                usage.output_tokens,
-            ])
 
     async def supports(self, target_lang: str) -> bool:
         # The LLM handles any language name we accept.

@@ -23,7 +23,7 @@ async def main() -> None:
 
     storage = Storage(config.db_path)
     await storage.connect()
-    registry = build_registry(config)
+    registry = build_registry(config, storage)
 
     bot = Bot(
         token=config.bot_token,
