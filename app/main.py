@@ -7,6 +7,8 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.types import BotCommand
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from aiohttp import web
 
 from . import handlers
 from .config import load_config
@@ -39,18 +41,38 @@ async def main() -> None:
         BotCommand(command="help", description="How to use this bot"),
     ])
 
-    try:
-        await bot.delete_webhook(drop_pending_updates=True)
-        await dispatcher.start_polling(
-            bot,
-            registry=registry,
-            storage=storage,
-            config=config,
+    if config.webhook_url:
+        await bot.set_webhook(
+            url=config.webhook_url,
+            secret_token=config.webhook_secret,
+            drop_pending_updates=True,
         )
-    finally:
-        await registry.aclose()
-        await storage.close()
-        await bot.session.close()
+        app = web.Application()
+        SimpleRequestHandler(dispatcher=dispatcher, bot=bot).register(app, path=config.webhook_path)
+        setup_application(app, dispatcher, registry=registry, storage=storage, config=config)
+        runner = web.AppRunner(app)
+        await runner.setup()
+        await web.TCPSite(runner, "0.0.0.0", config.webhook_port).start()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            await runner.cleanup()
+            await registry.aclose()
+            await storage.close()
+            await bot.session.close()
+    else:
+        try:
+            await bot.delete_webhook(drop_pending_updates=True)
+            await dispatcher.start_polling(
+                bot,
+                registry=registry,
+                storage=storage,
+                config=config,
+            )
+        finally:
+            await registry.aclose()
+            await storage.close()
+            await bot.session.close()
 
 
 if __name__ == "__main__":

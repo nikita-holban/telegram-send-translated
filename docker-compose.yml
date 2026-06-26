@@ -1,0 +1,9 @@
+# Local dev only — no webhook vars; bot runs in polling mode.
+services:
+  translate-bot:
+    build: .
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+      - ./credentials:/app/credentials:ro
+    restart: unless-stopped

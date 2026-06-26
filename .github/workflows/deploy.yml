@@ -8,7 +8,8 @@ on:
 
 jobs:
   deploy:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # Disabled: deployment now uses Ansible + Docker (see infra/ directory).
+    if: false
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to server
