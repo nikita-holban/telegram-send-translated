@@ -8,18 +8,13 @@ on:
 
 jobs:
   deploy:
-    # Disabled: deployment now uses Ansible + Docker (see infra/ directory).
-    if: false
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to server
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: |
-            cd /home/ana/telegram-translate
-            git fetch origin
-            git reset --hard origin/main
-            sudo systemctl restart telegram-translate
+      - name: Deploy to quantum
+        run: |
+          echo "${{ secrets.QUANTUM_SSH_KEY }}" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+          ssh -i /tmp/deploy_key \
+              -o StrictHostKeyChecking=no \
+              deploy@164.90.189.210
