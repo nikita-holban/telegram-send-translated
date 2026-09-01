@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from datetime import datetime, timezone
 
 from google.cloud import translate_v3
 
@@ -14,6 +15,20 @@ logger = logging.getLogger(__name__)
 
 # USD per million source characters for the translation-llm model.
 _RATE_PER_M_CHARS = 300.0
+
+
+def _utcnow() -> datetime:
+    # Indirection so tests can pin the clock across a month boundary.
+    return datetime.now(timezone.utc)
+
+
+def _month_start(now: datetime) -> datetime:
+    return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+
+def _next_month_start(now: datetime) -> datetime:
+    year, month = (now.year + 1, 1) if now.month == 12 else (now.year, now.month + 1)
+    return _month_start(now).replace(year=year, month=month)
 
 
 class GoogleProvider(TranslationProvider):
@@ -48,13 +63,18 @@ class GoogleProvider(TranslationProvider):
                 f'Google Translation LLM doesn\'t recognize "{target_lang}".'
             )
         if self._budget_usd is not None:
-            chars_so_far = await self._storage.google_chars_used()
+            now = _utcnow()
+            chars_so_far = await self._storage.google_chars_used_since(
+                _month_start(now).isoformat()
+            )
             projected_usd = (chars_so_far + len(text)) * _RATE_PER_M_CHARS / 1_000_000
             if projected_usd > self._budget_usd:
                 spent_usd = chars_so_far * _RATE_PER_M_CHARS / 1_000_000
+                resets = _next_month_start(now).strftime("%Y-%m-%d")
                 raise TranslationError(
-                    f"Google translation budget (${self._budget_usd:.2f}) reached. "
-                    f"Spent so far: ${spent_usd:.2f}. Switch to the Anthropic provider."
+                    f"Google translation budget (${self._budget_usd:.2f}/month) reached. "
+                    f"Spent this month: ${spent_usd:.2f}. Resets {resets}. "
+                    "Switch to the Anthropic provider."
                 )
         response = await self._client.translate_text(
             request={

@@ -52,10 +52,19 @@ class Storage:
         )
         await db.commit()
 
-    async def google_chars_used(self) -> int:
+    async def google_chars_used_since(self, start: str) -> int:
+        """Characters sent to Google at or after ``start`` (an ISO-8601 UTC string).
+
+        Timestamps are compared as text, which is only correct because every row
+        is written by ``log_google_usage`` via ``datetime.now(timezone.utc)`` and
+        so shares a fixed ``+00:00`` offset — ISO-8601 at a uniform offset sorts
+        lexicographically.
+        """
         db = self._require_db()
         async with db.execute(
-            "SELECT COALESCE(SUM(chars), 0) FROM usage_log WHERE provider = 'google'"
+            "SELECT COALESCE(SUM(chars), 0) FROM usage_log "
+            "WHERE provider = 'google' AND timestamp >= ?",
+            (start,),
         ) as cursor:
             row = await cursor.fetchone()
         return int(row[0]) if row else 0
