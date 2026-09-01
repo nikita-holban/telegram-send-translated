@@ -12,6 +12,7 @@ from aiohttp import web
 
 from . import handlers
 from .config import load_config
+from .history import HistoryStore, PendingResults
 from .providers import build_registry
 from .storage import Storage
 
@@ -26,6 +27,12 @@ async def main() -> None:
     storage = Storage(config.db_path)
     await storage.connect()
     registry = build_registry(config, storage)
+
+    history = HistoryStore(
+        max_exchanges=config.history_max_exchanges,
+        stale_after_seconds=config.history_stale_after_days * 24 * 60 * 60,
+    )
+    pending = PendingResults()
 
     bot = Bot(
         token=config.bot_token,
@@ -46,11 +53,16 @@ async def main() -> None:
         dispatcher["registry"] = registry
         dispatcher["storage"] = storage
         dispatcher["config"] = config
+        dispatcher["history"] = history
+        dispatcher["pending"] = pending
 
         await bot.set_webhook(
             url=config.webhook_url,
             secret_token=config.webhook_secret,
             drop_pending_updates=True,
+            # Named explicitly so chosen_inline_result — which translation
+            # history depends on — can't be dropped by a default change.
+            allowed_updates=dispatcher.resolve_used_update_types(),
         )
         app = web.Application()
         SimpleRequestHandler(dispatcher=dispatcher, bot=bot).register(app, path=config.webhook_path)
@@ -73,6 +85,8 @@ async def main() -> None:
                 registry=registry,
                 storage=storage,
                 config=config,
+                history=history,
+                pending=pending,
             )
         finally:
             await registry.aclose()

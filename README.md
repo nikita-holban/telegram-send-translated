@@ -30,6 +30,11 @@ Two translation engines are supported and each user picks their own:
   (`Українська`, `Español`), or code, and offers tappable suggestions when
   you mistype (e.g. `Ukrannian` → `Ukrainian`). Replies show both names.
 - **Translation engine**: each user picks Claude or Google with `/provider`.
+- **Conversation context** (Claude only): your recent translations are sent
+  along as context, so pronouns resolve and terminology stays consistent
+  instead of every message being translated cold. Only translations you tap
+  and send are remembered, kept per user *and* per target language, in memory
+  only — never written to disk, and lost when the bot restarts.
 - Telegram's inline API does not expose *which* chat a query came from, so
   settings are per **user**, not per chat. The `xx:` prefix is the
   per-conversation override.
@@ -41,6 +46,10 @@ Two translation engines are supported and each user picks their own:
 1. Message [@BotFather](https://t.me/BotFather) → `/newbot` → copy the token.
 2. `/setinline` → select your bot → set a placeholder (e.g. `Text to translate…`).
    **Inline mode must be enabled or inline queries never reach the bot.**
+3. `/setinlinefeedback` → select your bot → **Enabled for 100% of results**.
+   This tells the bot which result you actually sent — the only signal
+   conversation context is built from, so a sampled rate leaves gaps and
+   disabling it turns context off entirely.
 
 ### 2. Configure a translation provider
 
@@ -99,6 +108,9 @@ All settings are environment variables (see `.env.example`):
 | `DEFAULT_PROVIDER` | no | `anthropic` | Provider for users who haven't run `/provider` |
 | `DEFAULT_TARGET_LANG` | no | `English` | Fallback when a user has no `/setlang` |
 | `DB_PATH` | no | `data/bot.db` | SQLite file for per-user settings |
+| `HISTORY_ENABLED` | no | `true` | Send recent translations to Claude as context |
+| `HISTORY_MAX_EXCHANGES` | no | `10` | Exchanges remembered per user per target language |
+| `HISTORY_STALE_AFTER_DAYS` | no | `7` | After this gap, only the last 3 exchanges are used |
 
 ## Tests
 
@@ -106,9 +118,10 @@ All settings are environment variables (see `.env.example`):
 uv run pytest
 ```
 
-Covers language resolution, typo suggestions, the SQLite settings store, and
-provider selection. End-to-end inline translation requires a real `BOT_TOKEN`,
-provider credentials, and a Telegram client.
+Covers language resolution, typo suggestions, the SQLite settings store,
+provider selection, and the conversation-history store (retention, staleness,
+trimming, and the pending-result handshake). End-to-end inline translation
+requires a real `BOT_TOKEN`, provider credentials, and a Telegram client.
 
 ## Project layout
 
@@ -119,6 +132,7 @@ app/
   handlers.py    /start /help /setlang /provider /lang + inline & callbacks
   providers/     translation backends (adapter, Anthropic, Google, registry)
   storage.py     aiosqlite per-user settings
+  history.py     in-memory conversation context + pending inline results
   languages.py   inline prefix parsing, language resolution, suggestions
 tests/           offline unit tests
 ```

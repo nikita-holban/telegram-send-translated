@@ -9,6 +9,7 @@ from aiogram import F, Router
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import (
     CallbackQuery,
+    ChosenInlineResult,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     InlineQuery,
@@ -19,6 +20,7 @@ from aiogram.types import (
 )
 
 from .config import Config
+from .history import HistoryStore, PendingResults
 from .languages import (
     display_language,
     normalize_language,
@@ -298,6 +300,8 @@ async def inline_translate(
     registry: ProviderRegistry,
     storage: Storage,
     config: Config,
+    history: HistoryStore,
+    pending: PendingResults,
 ) -> None:
     user_id = inline_query.from_user.id
     raw = inline_query.query
@@ -333,9 +337,10 @@ async def inline_translate(
         or config.default_target_lang
     )
     _, provider = registry.resolve(await storage.get_provider(user_id))
+    past = history.get(user_id, target) if config.history_enabled else ()
 
     try:
-        translated = await provider.translate(body, target)
+        translated = await provider.translate(body, target, past)
     except TranslationError as exc:
         await inline_query.answer(
             results=[_error_result(body, str(exc))],
@@ -360,8 +365,14 @@ async def inline_translate(
     if _latest_query.get(user_id) != inline_query.id:
         return
 
+    # Park the translation so it can enter history if — and only if — the user
+    # taps this result. Telegram reports that as a chosen_inline_result.
+    result_id = str(uuid.uuid4())
+    if config.history_enabled:
+        pending.park(result_id, user_id, target, body, translated)
+
     result = InlineQueryResultArticle(
-        id=str(uuid.uuid4()),
+        id=result_id,
         title=f"Translate to {display_language(target)}",
         description=translated,
         input_message_content=InputTextMessageContent(
@@ -369,3 +380,21 @@ async def inline_translate(
         ),
     )
     await inline_query.answer(results=[result], cache_time=0, is_personal=True)
+
+
+@router.chosen_inline_result()
+async def on_chosen_inline_result(
+    chosen: ChosenInlineResult, history: HistoryStore, pending: PendingResults
+) -> None:
+    """Remember a translation once the user has actually sent it.
+
+    Requires inline feedback at 100% in BotFather (/setinlinefeedback);
+    without it these updates never arrive and history stays empty.
+    """
+    claimed = pending.claim(chosen.result_id)
+    if claimed is None:
+        # Expired, already claimed, or an error result the user tapped.
+        return
+    history.record(
+        claimed.user_id, claimed.target_lang, claimed.source, claimed.translation
+    )

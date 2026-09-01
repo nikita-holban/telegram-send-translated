@@ -19,10 +19,17 @@ class Config:
     default_provider: str
     default_target_lang: str
     db_path: str
+    history_enabled: bool
+    history_max_exchanges: int
+    history_stale_after_days: int
     webhook_url: str | None
     webhook_port: int
     webhook_path: str
     webhook_secret: str | None
+
+
+# Everything else — "1", "true", "yes", anything unrecognized — reads as on.
+_FALSY = {"0", "false", "no", "off"}
 
 
 def _require(name: str) -> str:
@@ -33,6 +40,14 @@ def _require(name: str) -> str:
             "Copy .env.example to .env and fill it in."
         )
     return value
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    """Read a boolean env var, treating unset or blank as ``default``."""
+    value = os.getenv(name, "").strip().lower()
+    if not value:
+        return default
+    return value not in _FALSY
 
 
 def load_config() -> Config:
@@ -69,6 +84,9 @@ def load_config() -> Config:
         default_provider=os.getenv("DEFAULT_PROVIDER", "anthropic").strip().lower(),
         default_target_lang=os.getenv("DEFAULT_TARGET_LANG", "English"),
         db_path=os.getenv("DB_PATH", "data/bot.db"),
+        history_enabled=_env_bool("HISTORY_ENABLED", True),
+        history_max_exchanges=int(os.getenv("HISTORY_MAX_EXCHANGES", "10")),
+        history_stale_after_days=int(os.getenv("HISTORY_STALE_AFTER_DAYS", "7")),
         webhook_url=webhook_url,
         webhook_port=int(os.getenv("WEBHOOK_PORT", "8445")),
         webhook_path=os.getenv("WEBHOOK_PATH", "/translate/webhook"),

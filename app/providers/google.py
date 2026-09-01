@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 
 from google.cloud import translate_v3
 
+from ..history import Exchange
 from ..languages import to_language_code
 from ..storage import Storage
 from .base import TranslationError, TranslationProvider
@@ -35,7 +37,11 @@ class GoogleProvider(TranslationProvider):
         self._storage = storage
         self._budget_usd = budget_usd
 
-    async def translate(self, text: str, target_lang: str) -> str:
+    async def translate(
+        self, text: str, target_lang: str, history: Sequence[Exchange] = ()
+    ) -> str:
+        # ``history`` is ignored: translate_text takes standalone contents and
+        # has no way to carry conversational context.
         code = to_language_code(target_lang)
         if code is None:
             raise TranslationError(
